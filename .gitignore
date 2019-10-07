@@ -1,0 +1,8 @@
+# Ide
+.idea
+.vscode/*
+
+# Python
+/venv/
+__pycache__/
+*.py[cod]
