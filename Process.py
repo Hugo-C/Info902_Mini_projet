@@ -8,6 +8,7 @@ from time import sleep
 from LamportClock import LamportClock
 from EventBus import EventBus
 from Event import Event
+from Event import BroadcastMessage
 
 
 class Process(Thread):
@@ -43,13 +44,13 @@ class Process(Thread):
             sleep(1)
 
             self.lamport_clock.increment()
-            b1 = Event(topic='Bidule', data="ga", lamport_clock=self.lamport_clock)
+            b1 = Event(data="ga", lamport_clock=self.lamport_clock)
             print(self.getName() + " send: " + b1.getData())
             print("[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
             self.bus.post(b1)
             if self.getName() == "P2":
                 self.lamport_clock.increment()
-                b2 = Event(topic='Machin', data="bu", lamport_clock=self.lamport_clock)
+                b2 = Event(data="bu", lamport_clock=self.lamport_clock)
                 self.bus.post(b2)
                 print(self.getName() + " send: " + b2.getData())
                 print("[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
@@ -60,3 +61,23 @@ class Process(Thread):
     def stop(self):
         self.alive = False
         self.join()
+
+    def broadcast(self, data):
+        bm = BroadcastMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName())
+        self.lamport_clock.increment()
+        print(self.getName() + " send: " + bm.getData())
+        print("[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
+        self.bus.post(bm)
+
+    def onBroadcast(self, m):
+        if not isinstance(m, BroadcastMessage):
+            print(self.getName() + ' Invalid object type is passed.')
+            return
+        if m.getAuthor() == self.getName():
+            return
+        topic = m.getTopic()
+        data = m.getData()
+        lamport_clock_value = m.getEstampile()
+        self.lamport_clock.update(lamport_clock_value)
+        print(self.getName() + ' Processes event from TOPIC: ' + topic + ' with DATA: ' + data)
+        print("[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
