@@ -1,10 +1,7 @@
 from time import sleep
 from Process import Process
-from EventBus import EventBus
 
 if __name__ == '__main__':
-
-    bus = EventBus.getInstance()
 
     p1 = Process("P1")
     p2 = Process("P2")
@@ -15,5 +12,3 @@ if __name__ == '__main__':
     p1.stop()
     p2.stop()
     p3.stop()
-
-    bus.stop()

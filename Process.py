@@ -2,13 +2,11 @@ from threading import Lock, Thread
 
 from time import sleep
 
-# from geeteventbus.subscriber import subscriber
-# from geeteventbus.eventbus import eventbus
-# from geeteventbus.event import event
-from LamportClock import LamportClock
-from EventBus import EventBus
 from Event import Event
 from Event import BroadcastMessage
+from LamportClock import LamportClock
+
+from pyeventbus3.pyeventbus3 import *
 
 
 class Process(Thread):
@@ -18,23 +16,16 @@ class Process(Thread):
         self.setName(name)
         self.lamport_clock = LamportClock()
 
-        self.bus = EventBus.getInstance()
-        self.bus.register(self, 'Bidule')
-        if self.getName() == "P3":
-            self.bus.register(self, 'Machin')
+        PyBus.Instance().register(self, self.__class__.__name__)
 
         self.alive = True
         self.start()
 
+    @subscribe(onEvent=Event)
     def process(self, event):
-        if not isinstance(event, Event):
-            print(self.getName() + ' Invalid object type is passed.')
-            return
-        topic = event.getTopic()
-        data = event.getData()
         lamport_clock_value = event.getEstampile()
         self.lamport_clock.update(lamport_clock_value)
-        print(self.getName() + ' Processes event from TOPIC: ' + topic + ' with DATA: ' + data)
+        print(self.getName() + ' Processes event : ' + event.getData())
         print("[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
 
     def run(self):
@@ -44,16 +35,14 @@ class Process(Thread):
             sleep(1)
 
             self.lamport_clock.increment()
-            b1 = Event(data="ga", lamport_clock=self.lamport_clock)
+            b1 = BroadcastMessage("ga", lamport_clock=self.lamport_clock, author=self.getName())
             print(self.getName() + " send: " + b1.getData())
-            print("[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
-            self.bus.post(b1)
+            PyBus.Instance().post(b1)
             if self.getName() == "P2":
                 self.lamport_clock.increment()
-                b2 = Event(data="bu", lamport_clock=self.lamport_clock)
-                self.bus.post(b2)
+                b2 = Event("bu", lamport_clock=self.lamport_clock)
                 print(self.getName() + " send: " + b2.getData())
-                print("[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
+                PyBus.Instance().post(b2)
 
             loop += 1
         print(self.getName() + " stopped")
@@ -65,19 +54,19 @@ class Process(Thread):
     def broadcast(self, data):
         bm = BroadcastMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName())
         self.lamport_clock.increment()
-        print(self.getName() + " send: " + bm.getData())
-        print("[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
-        self.bus.post(bm)
+        print("Broadcast " + bm.getAuthor() + " => " + self.getName() + " send: " + bm.getData())
+        print("Broadcast => " + "[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
+        PyBus.Instance().post(bm)
 
+    @subscribe(onEvent=BroadcastMessage)
     def onBroadcast(self, m):
         if not isinstance(m, BroadcastMessage):
-            print(self.getName() + ' Invalid object type is passed.')
+            print("Broadcast => " + self.getName() + ' Invalid object type is passed.')
             return
         if m.getAuthor() == self.getName():
             return
-        topic = m.getTopic()
         data = m.getData()
         lamport_clock_value = m.getEstampile()
         self.lamport_clock.update(lamport_clock_value)
-        print(self.getName() + ' Processes event from TOPIC: ' + topic + ' with DATA: ' + data)
-        print("[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
+        print("Broadcast " + m.getAuthor() + " => " + self.getName() + ' Processes event : ' + data)
+        print("Broadcast => " + "[MY_LOG] self.lamport_clock : " + repr(self.lamport_clock))
