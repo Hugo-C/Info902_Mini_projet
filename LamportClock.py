@@ -10,4 +10,4 @@ class LamportClock:
         self.clock = max(self.clock, received_clock) + 1
 
     def __repr__(self):
-        return "clock : " + str(self.clock)
+        return " (" + str(self.clock) + ")"
