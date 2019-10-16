@@ -28,4 +28,7 @@ class Token(DedicatedMessage):
         super().__init__("", lamport_clock=lamport_clock, author=author, recipient=recipient)
         self.min_wait = min_wait
 
+    def update_lamport_clock(self, lamport_clock):
+        self.estampile = lamport_clock.clock
+
 
