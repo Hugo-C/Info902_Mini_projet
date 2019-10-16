@@ -117,8 +117,11 @@ class Process(Thread):
     
     @subscribe(onEvent=Token)
     def onToken(self, token):
-        if not self.alive and token.recipient == self.getName():
+        if not self.alive:
             return
+        if token.recipient != self.getName():
+            return
+
         assert self.state != State.SC, "Error : unstable state ! " + self.getName()
         assert self.state != State.RELEASE, "Error : unstable state ! " + self.getName()
         self.lamport_clock.update(token)
