@@ -43,8 +43,8 @@ class Process(Thread):
         loop = 0
         while self.alive:
             sleep(1)
-            self.sendTo("ga", "2")
-            if self.getName() == "2":
+            # self.sendTo("ga", "2")
+            if self.getName() == "0":
                 self.broadcast("bu")
 
             loop += 1
@@ -58,7 +58,7 @@ class Process(Thread):
         self.lamport_clock.increment()
         bm = BroadcastMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName())
         print(f"{self} Broadcast => send: {data} {self.lamport_clock}")
-        PyBus.Instance().post(bm)
+        bm.post()
 
     @subscribe(onEvent=BroadcastMessage)
     def onBroadcast(self, m):
@@ -76,7 +76,7 @@ class Process(Thread):
         self.lamport_clock.increment()
         dm = DedicatedMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName(), recipient=id)
         print(f"{self} DedicatedMessage => send: {data} to {id} {self.lamport_clock}")
-        PyBus.Instance().post(dm)
+        dm.post()
 
     @subscribe(onEvent=DedicatedMessage)
     def onReceive(self, m):
@@ -114,8 +114,8 @@ class Process(Thread):
         self.lamport_clock.increment()
         t.update_lamport_clock(self.lamport_clock)
         print(f"{self} Token => send token to {t.recipient} {self.lamport_clock}")
-        PyBus.Instance().post(t)
-    
+        t.post()
+
     @subscribe(onEvent=Token)
     def onToken(self, token):
         if not self.alive:
@@ -134,4 +134,4 @@ class Process(Thread):
             while self.state != State.RELEASE:
                 sleep(token.min_wait)
         self.state = None
-        self.sendToken(token)
+        # self.sendToken(token)

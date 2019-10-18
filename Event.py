@@ -1,3 +1,6 @@
+from pyeventbus3.pyeventbus3 import PyBus
+
+
 class Event:
     def __init__(self, data, *, lamport_clock):
         self.data = data
@@ -8,6 +11,10 @@ class Event:
 
     def getEstampile(self):
         return self.estampile
+
+    def post(self):
+        PyBus.Instance().post(self)
+
 
 class BroadcastMessage(Event):
     def __init__(self, data, *, lamport_clock, author):
