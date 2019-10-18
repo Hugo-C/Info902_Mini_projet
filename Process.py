@@ -15,8 +15,8 @@ PROCESS_NUMBER = 3
 DICE_FACE = 6
 RESULT_FILENAME = "results.txt"
 
-
 def who_is_winner(dict_of_result):
+    """ return the winner of the last dice roll """
     winner = "error"
     max_res = -1
     for key, value in dict_of_result.items():
@@ -50,6 +50,7 @@ class Process(Thread):
         print(f" data : {event.getData()}  {self.lamport_clock}")
 
     def run_old(self):
+        """ method run to test all messages """
         if self.getName() == "0":
             sleep(2)
             self.synchronize()
@@ -71,18 +72,25 @@ class Process(Thread):
         print(f"{self} stopped")
 
     def run(self):
+        """ method run for the roll dice """
         sleep(1)
         if self.getName() == "1":
             t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
             self.sendToken(t)
         loop = 0
         while self.alive:
+
+            # roll dice
             dice_value = self.roll_dice()
             self.dice_result = {self.getName(): dice_value}
             self.broadcast(f"dice_value:{dice_value}")
+
+            # wait that all players have play
             while len(self.dice_result) < PROCESS_NUMBER and self.alive:
                 sleep(0.5)
+
             if self.alive:
+                # look at who is the winner and write his result in a file
                 process, res = who_is_winner(self.dice_result)
                 if self.getName() == process:
                     self.write_result(process, res)
@@ -91,6 +99,7 @@ class Process(Thread):
         print(f"{self} stopped")
 
     def write_result(self, process, result):
+        """ write in a file the winner's result of the last roll dice """
         print(f"{self} writing result {self.lamport_clock}")
         self.request()
         while self.state != State.SC and self.alive:
