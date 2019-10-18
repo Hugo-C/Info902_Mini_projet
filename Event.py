@@ -1,6 +1,7 @@
 from pyeventbus3.pyeventbus3 import PyBus
 
 
+# Base class, used by other Message class
 class Event:
     def __init__(self, data, *, lamport_clock):
         self.data = data
@@ -10,9 +11,11 @@ class Event:
         return self.data
 
     def getEstampile(self):
+        """Return the estampile or lamport clock value of the event"""
         return self.estampile
 
     def post(self):
+        """Post this message on the bus"""
         PyBus.Instance().post(self)
 
 
@@ -20,9 +23,6 @@ class BroadcastMessage(Event):
     def __init__(self, data, *, lamport_clock, author):
         super().__init__(data, lamport_clock=lamport_clock)
         self.author = author
-
-    def getAuthor(self):
-        return self.author
 
 
 class Synchronize(BroadcastMessage):
@@ -48,6 +48,7 @@ class Token(DedicatedMessage):
         self.min_wait = min_wait
 
     def update_lamport_clock(self, lamport_clock):
+        """Update the lamport clock since a token will be send several times"""
         self.estampile = lamport_clock.clock
 
 

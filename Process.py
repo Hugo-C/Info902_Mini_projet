@@ -20,7 +20,7 @@ def who_is_winner(dict_of_result):
     winner = "error"
     max_res = -1
     for key, value in dict_of_result.items():
-        if value > max_res:
+        if value >= max_res:
             max_res = value
             winner = key
     return winner, max_res
@@ -118,11 +118,11 @@ class Process(Thread):
         if not isinstance(m, BroadcastMessage):
             print(f"{self} ONBroadcast => {self.getName()} Invalid object type is passed.")
             return
-        if m.getAuthor() == self.getName():
+        if m.author == self.getName():
             return
         data = m.getData()
         self.lamport_clock.update(m)
-        print(f"{self} ONBroadcast from {m.getAuthor()} => received : {data} + {self.lamport_clock}")
+        print(f"{self} ONBroadcast from {m.author} => received : {data} + {self.lamport_clock}")
         if "dice_value" in data:
             self.dice_result[m.author] = int(data.split(":")[1])
 
@@ -203,11 +203,11 @@ class Process(Thread):
         if not isinstance(m, Synchronize):
             print(f"{self} Synchronize => {self.getName()} Invalid object type is passed.")
             return
-        if m.getAuthor() == self.getName():
+        if m.author == self.getName():
             return
         self.lamport_clock.update(m)
-        print(f"{self} Synchronize from {m.getAuthor()} => {self.lamport_clock}")
-        self.synchronizeAck(m.getAuthor())
+        print(f"{self} Synchronize from {m.author} => {self.lamport_clock}")
+        self.synchronizeAck(m.author)
 
     def synchronizeAck(self, recipient):
         self.lamport_clock.increment()
