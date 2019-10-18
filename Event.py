@@ -24,11 +24,23 @@ class BroadcastMessage(Event):
     def getAuthor(self):
         return self.author
 
+
+class Synchronize(BroadcastMessage):
+    def __init__(self, *, lamport_clock, author):
+        super().__init__("", lamport_clock=lamport_clock, author=author)
+
+
 class DedicatedMessage(Event):
     def __init__(self, data, *, lamport_clock, author, recipient):
         super().__init__(data, lamport_clock=lamport_clock)
         self.author = author
         self.recipient = recipient
+
+
+class SynchronizeAck(DedicatedMessage):
+    def __init__(self, *, lamport_clock, author, recipient):
+        super().__init__("", lamport_clock=lamport_clock, author=author, recipient=recipient)
+
 
 class Token(DedicatedMessage):
     def __init__(self, *, lamport_clock, author, recipient, min_wait):

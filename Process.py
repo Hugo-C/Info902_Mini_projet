@@ -3,7 +3,7 @@ from threading import Lock, Thread
 from time import sleep
 from enum import Enum
 
-from Event import Event
+from Event import Event, Synchronize, SynchronizeAck
 from Event import BroadcastMessage
 from Event import DedicatedMessage
 from Event import Token
@@ -23,10 +23,11 @@ class Process(Thread):
         self.lamport_clock = LamportClock()
         self.state = None
 
-        PyBus.Instance().register(self, self.__class__.__name__)
+        PyBus.Instance().register(self, self)
 
         self.alive = True
         self.start()
+        self.answered_process = set()
 
     def __repr__(self):
         return f"[⚙ {self.getName()}]"
@@ -37,15 +38,18 @@ class Process(Thread):
         print(f" data : {event.getData()}  {self.lamport_clock}")
 
     def run(self):
-        # elif self.getName() == "2":
-        #     sleep(1)
-        #     self.critical_work()
+        if self.getName() == "2":
+            sleep(1)
+            self.critical_work()
+        if self.getName() == "0":
+            sleep(1)
+            self.synchronize()
         loop = 0
         while self.alive:
             sleep(1)
             # self.sendTo("ga", "2")
-            if self.getName() == "0":
-                self.broadcast("bu")
+            # if self.getName() == "0":
+            #     self.broadcast("bu")
 
             loop += 1
         print(f"{self} stopped")
@@ -66,7 +70,6 @@ class Process(Thread):
             print(f"{self} ONBroadcast => {self.getName()} Invalid object type is passed.")
             return
         if m.getAuthor() == self.getName():
-            print(f"{self} RECEIVED MY BROADCAST /!\\")
             return
         data = m.getData()
         self.lamport_clock.update(m)
@@ -134,4 +137,41 @@ class Process(Thread):
             while self.state != State.RELEASE:
                 sleep(token.min_wait)
         self.state = None
-        # self.sendToken(token)
+        self.sendToken(token)
+
+    def synchronize(self):
+        self.answered_process = set()
+        self.lamport_clock.increment()
+        m = Synchronize(lamport_clock=self.lamport_clock, author=self.getName())
+        print(f"{self} Synchronize => {self.lamport_clock}")
+        m.post()
+        while len(self.answered_process) < PROCESS_NUMBER - 1:
+            sleep(1)
+
+    @subscribe(onEvent=Synchronize)
+    def onSynchronize(self, m):
+        if not isinstance(m, Synchronize):
+            print(f"{self} Synchronize => {self.getName()} Invalid object type is passed.")
+            return
+        if m.getAuthor() == self.getName():
+            return
+        self.lamport_clock.update(m)
+        print(f"{self} Synchronize from {m.getAuthor()} => {self.lamport_clock}")
+        self.synchronizeAck(m.getAuthor())
+
+    def synchronizeAck(self, recipient):
+        self.lamport_clock.increment()
+        m = SynchronizeAck(lamport_clock=self.lamport_clock, author=self.getName(), recipient=recipient)
+        print(f"{self} SynchronizeAck => respond to {recipient} {self.lamport_clock}")
+        m.post()
+
+    @subscribe(onEvent=SynchronizeAck)
+    def onSynchronizeAck(self, m):
+        if not isinstance(m, SynchronizeAck):
+            print(f"{self} SynchronizeAck => {self.getName()} Invalid object type is passed.")
+            return
+        if m.recipient != self.getName():
+            return
+        self.lamport_clock.update(m)
+        print(f"{self} SynchronizeAck from {m.author} => {self.lamport_clock}")
+        self.answered_process.add(m.author)
