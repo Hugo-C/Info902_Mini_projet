@@ -1,16 +1,14 @@
 import random
-from threading import Lock, Thread
-
-from time import sleep
 from enum import Enum
-
-from Event import Event, Synchronize, SynchronizeAck
-from Event import BroadcastMessage
-from Event import DedicatedMessage
-from Event import Token
-from LamportClock import LamportClock
+from time import sleep
 
 from pyeventbus3.pyeventbus3 import *
+
+from Event import BroadcastMessage
+from Event import DedicatedMessage
+from Event import Event, Synchronize, SynchronizeAck
+from Event import Token
+from LamportClock import LamportClock
 
 State = Enum("State", "REQUEST SC RELEASE")
 PROCESS_NUMBER = 3
@@ -46,7 +44,7 @@ class Process(Thread):
     def __repr__(self):
         return f"[⚙ {self.getName()}]"
 
-    @subscribe(onEvent=Event)
+    @subscribe(threadMode=Mode.PARALLEL, onEvent=Event)
     def process(self, event):
         self.lamport_clock.update(event)
         print(f" data : {event.getData()}  {self.lamport_clock}")
@@ -82,25 +80,30 @@ class Process(Thread):
             dice_value = self.roll_dice()
             self.dice_result = {self.getName(): dice_value}
             self.broadcast(f"dice_value:{dice_value}")
-            while len(self.dice_result) < PROCESS_NUMBER:
+            while len(self.dice_result) < PROCESS_NUMBER and self.alive:
                 sleep(0.5)
-            process, res = who_is_winner(self.dice_result)
-            if self.getName() == process:
-                self.write_result(process, res)
-            self.synchronize()
-            loop += 1
+            if self.alive:
+                process, res = who_is_winner(self.dice_result)
+                if self.getName() == process:
+                    self.write_result(process, res)
+                self.synchronize()
+                loop += 1
         print(f"{self} stopped")
 
     def write_result(self, process, result):
+        print(f"{self} writing result {self.lamport_clock}")
         self.request()
         while self.state != State.SC and self.alive:
             sleep(1)
-        with open(RESULT_FILENAME, "a+") as f:
-            f.write(f"{process} : {result}\n")
-        self.release()
+        if self.alive:
+            self.lamport_clock.increment()
+            with open(RESULT_FILENAME, "a+") as f:
+                f.write(f"{process} : {result}\n")
+            self.release()
+            print(f"{self} result writed {self.lamport_clock}")
 
     def stop(self):
-        print(f"{self} RECEIVED stop message")
+        print(f"{self} RECEIVED stop message {self.lamport_clock}")
         self.alive = False
         self.join()
 
@@ -166,7 +169,7 @@ class Process(Thread):
         print(f"{self} Token => send token to {t.recipient} {self.lamport_clock}")
         t.post()
 
-    @subscribe(threadMode = Mode.PARALLEL, onEvent=Token)
+    @subscribe(threadMode=Mode.BACKGROUND, onEvent=Token)
     def onToken(self, token):
         if not self.alive:
             return
@@ -192,7 +195,7 @@ class Process(Thread):
         m = Synchronize(lamport_clock=self.lamport_clock, author=self.getName())
         print(f"{self} Synchronize => {self.lamport_clock}")
         m.post()
-        while len(self.answered_process) < PROCESS_NUMBER - 1:
+        while len(self.answered_process) < PROCESS_NUMBER - 1 and self.alive:
             sleep(1)
 
     @subscribe(onEvent=Synchronize)
@@ -212,7 +215,7 @@ class Process(Thread):
         print(f"{self} SynchronizeAck => respond to {recipient} {self.lamport_clock}")
         m.post()
 
-    @subscribe(threadMode = Mode.PARALLEL, onEvent=SynchronizeAck)
+    @subscribe(threadMode=Mode.PARALLEL, onEvent=SynchronizeAck)
     def onSynchronizeAck(self, m):
         if not isinstance(m, SynchronizeAck):
             print(f"{self} SynchronizeAck => {self.getName()} Invalid object type is passed.")
