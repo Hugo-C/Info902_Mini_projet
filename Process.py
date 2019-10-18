@@ -38,23 +38,28 @@ class Process(Thread):
         print(f" data : {event.getData()}  {self.lamport_clock}")
 
     def run(self):
-        if self.getName() == "2":
-            sleep(1)
-            self.critical_work()
         if self.getName() == "0":
-            sleep(1)
+            sleep(2)
             self.synchronize()
+        elif self.getName() == "1":
+            sleep(1)
+            t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
+            self.sendToken(t)
+        elif self.getName() == "2":
+            sleep(0.5)
+            self.critical_work()
         loop = 0
         while self.alive:
             sleep(1)
-            # self.sendTo("ga", "2")
-            # if self.getName() == "0":
-            #     self.broadcast("bu")
+            self.sendTo("ga", "2")
+            if self.getName() == "0":
+                self.broadcast("bu")
 
             loop += 1
         print(f"{self} stopped")
 
     def stop(self):
+        print(f"{self} RECEIVED stop message")
         self.alive = False
         self.join()
 
@@ -96,7 +101,7 @@ class Process(Thread):
     def request(self):
         self.state = State.REQUEST
         print(f"{self} REQUEST => state : {self.state}")
-    
+
     def release(self):
         assert self.state == State.SC, "Error : unstable state !"
         self.state = State.RELEASE
@@ -104,7 +109,7 @@ class Process(Thread):
 
     def critical_work(self):
         self.request()
-        while self.state != State.SC:
+        while self.state != State.SC and self.alive:
             sleep(1)
         print(f"{self} SC => state : {self.state}")
         sleep(1)
