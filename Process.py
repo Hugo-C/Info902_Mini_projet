@@ -1,3 +1,4 @@
+import random
 from threading import Lock, Thread
 
 from time import sleep
@@ -13,6 +14,18 @@ from pyeventbus3.pyeventbus3 import *
 
 State = Enum("State", "REQUEST SC RELEASE")
 PROCESS_NUMBER = 3
+DICE_FACE = 6
+RESULT_FILENAME = "results.txt"
+
+
+def who_is_winner(dict_of_result):
+    winner = "error"
+    max_res = -1
+    for key, value in dict_of_result.items():
+        if value > max_res:
+            max_res = value
+            winner = key
+    return winner, max_res
 
 
 class Process(Thread):
@@ -28,6 +41,7 @@ class Process(Thread):
         self.alive = True
         self.start()
         self.answered_process = set()
+        self.dice_result = {}
 
     def __repr__(self):
         return f"[⚙ {self.getName()}]"
@@ -37,7 +51,7 @@ class Process(Thread):
         self.lamport_clock.update(event)
         print(f" data : {event.getData()}  {self.lamport_clock}")
 
-    def run(self):
+    def run_old(self):
         if self.getName() == "0":
             sleep(2)
             self.synchronize()
@@ -57,6 +71,33 @@ class Process(Thread):
 
             loop += 1
         print(f"{self} stopped")
+
+    def run(self):
+        sleep(1)
+        if self.getName() == "1":
+            t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
+            self.sendToken(t)
+        loop = 0
+        while self.alive:
+            dice_value = self.roll_dice()
+            self.dice_result = {self.getName(): dice_value}
+            self.broadcast(f"dice_value:{dice_value}")
+            while len(self.dice_result) < PROCESS_NUMBER:
+                sleep(0.5)
+            process, res = who_is_winner(self.dice_result)
+            if self.getName() == process:
+                self.write_result(process, res)
+            self.synchronize()
+            loop += 1
+        print(f"{self} stopped")
+
+    def write_result(self, process, result):
+        self.request()
+        while self.state != State.SC and self.alive:
+            sleep(1)
+        with open(RESULT_FILENAME, "a+") as f:
+            f.write(f"{process} : {result}\n")
+        self.release()
 
     def stop(self):
         print(f"{self} RECEIVED stop message")
@@ -79,6 +120,8 @@ class Process(Thread):
         data = m.getData()
         self.lamport_clock.update(m)
         print(f"{self} ONBroadcast from {m.getAuthor()} => received : {data} + {self.lamport_clock}")
+        if "dice_value" in data:
+            self.dice_result[m.author] = int(data.split(":")[1])
 
     def sendTo(self, data, id):
         self.lamport_clock.increment()
@@ -123,7 +166,7 @@ class Process(Thread):
         print(f"{self} Token => send token to {t.recipient} {self.lamport_clock}")
         t.post()
 
-    @subscribe(onEvent=Token)
+    @subscribe(threadMode = Mode.PARALLEL, onEvent=Token)
     def onToken(self, token):
         if not self.alive:
             return
@@ -169,7 +212,7 @@ class Process(Thread):
         print(f"{self} SynchronizeAck => respond to {recipient} {self.lamport_clock}")
         m.post()
 
-    @subscribe(onEvent=SynchronizeAck)
+    @subscribe(threadMode = Mode.PARALLEL, onEvent=SynchronizeAck)
     def onSynchronizeAck(self, m):
         if not isinstance(m, SynchronizeAck):
             print(f"{self} SynchronizeAck => {self.getName()} Invalid object type is passed.")
@@ -179,3 +222,6 @@ class Process(Thread):
         self.lamport_clock.update(m)
         print(f"{self} SynchronizeAck from {m.author} => {self.lamport_clock}")
         self.answered_process.add(m.author)
+
+    def roll_dice(self):
+        return random.randint(1, DICE_FACE)
