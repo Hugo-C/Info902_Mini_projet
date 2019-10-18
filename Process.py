@@ -95,7 +95,6 @@ class Process(Thread):
             return
         data = m.getData()
         self.lamport_clock.update(m)
-        print("DedicatedMessage " + m.author + " => " + self.getName() + ' data : ' + data + " " + repr(self.lamport_clock))
         print(f"{self} ONDedicatedMessage from {m.author} => received: {data} {self.lamport_clock}")
 
     def request(self):
