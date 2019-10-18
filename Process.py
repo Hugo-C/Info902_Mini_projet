@@ -178,7 +178,7 @@ class Process(Thread):
         print(f"{self} Token => send token to {t.recipient} {self.lamport_clock}")
         t.post()
 
-    @subscribe(threadMode=Mode.BACKGROUND, onEvent=Token)
+    @subscribe(threadMode=Mode.PARALLEL, onEvent=Token)
     def onToken(self, token):
         if not self.alive:
             return
