@@ -55,8 +55,8 @@ class Process(Thread):
         self.join()
 
     def broadcast(self, data):
-        bm = BroadcastMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName())
         self.lamport_clock.increment()
+        bm = BroadcastMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName())
         print(f"{self} Broadcast => send: {data} {self.lamport_clock}")
         PyBus.Instance().post(bm)
 
@@ -66,14 +66,15 @@ class Process(Thread):
             print(f"{self} ONBroadcast => {self.getName()} Invalid object type is passed.")
             return
         if m.getAuthor() == self.getName():
+            print(f"{self} RECEIVED MY BROADCAST /!\\")
             return
         data = m.getData()
         self.lamport_clock.update(m)
         print(f"{self} ONBroadcast from {m.getAuthor()} => received : {data} + {self.lamport_clock}")
 
     def sendTo(self, data, id):
-        dm = DedicatedMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName(), recipient=id)
         self.lamport_clock.increment()
+        dm = DedicatedMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName(), recipient=id)
         print(f"{self} DedicatedMessage => send: {data} to {id} {self.lamport_clock}")
         PyBus.Instance().post(dm)
 
