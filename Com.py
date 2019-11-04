@@ -1,10 +1,16 @@
 from collections import deque
+from enum import Enum
+from time import sleep
 
+from pyeventbus3.pyeventbus import Mode
 from pyeventbus3.pyeventbus3 import PyBus
 from pyeventbus3.pyeventbus3 import subscribe
 
 from LamportClock import LamportClock
-from Message import BroadcastMessage, DedicatedMessage
+from Message import BroadcastMessage, DedicatedMessage, Token
+
+State = Enum("State", "REQUEST SC RELEASE")
+PROCESS_NUMBER = 3
 
 
 class Com:
@@ -12,6 +18,8 @@ class Com:
         self.process = process
         self.letterbox = deque()
         self.lamport_clock = LamportClock()
+        self.state = None
+
         PyBus.Instance().register(self, self)
 
     def __repr__(self):
@@ -59,3 +67,30 @@ class Com:
         self.lamport_clock.update(m)
         print(f"{self} ONDedicatedMessage from {m.author} => received: {data} {self.lamport_clock}")
         self.lamport_clock.unlock_clock()
+
+    def send_token(self, t):
+        process_position = int(self.process.getName())
+        t.recipient = str((process_position + 1) % PROCESS_NUMBER)
+        t.author = self.process.getName()
+        t.update_lamport_clock(self.lamport_clock)
+        print(f"{self} Token => send token to {t.recipient} {self.lamport_clock}")
+        t.post()
+
+    @subscribe(threadMode=Mode.PARALLEL, onEvent=Token)
+    def on_token(self, token):
+        if not self.process.alive:
+            return
+        if token.recipient != self.process.getName():
+            return
+
+        assert self.state != State.SC, "Error : unstable state ! " + self.process.getName()
+        assert self.state != State.RELEASE, "Error : unstable state ! " + self.process.getName()
+        print(f"{self} ONToken => received token from {token.author} {self.lamport_clock}")
+        if self.state is None:
+            sleep(token.min_wait)
+        elif self.state == State.REQUEST:
+            self.state = State.SC
+            while self.state != State.RELEASE:
+                sleep(token.min_wait)
+        self.state = None
+        self.send_token(token)

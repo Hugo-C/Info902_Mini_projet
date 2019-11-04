@@ -8,7 +8,6 @@ from Com import Com
 from Message import *
 from LamportClock import LamportClock
 
-State = Enum("State", "REQUEST SC RELEASE")
 PROCESS_NUMBER = 3
 DICE_FACE = 6
 RESULT_FILENAME = "results.txt"
@@ -30,8 +29,6 @@ class Process(Thread):
 
         self.setName(name)
        
-        self.state = None
-
         self.alive = True
         self.start()
         self.answered_process = set()
@@ -131,35 +128,6 @@ class Process(Thread):
         print(f"{self} SC => state : {self.state}")
         sleep(1)
         self.release()
-
-    def sendToken(self, t):
-        process_position = int(self.getName())
-        t.recipient = str((process_position + 1) % PROCESS_NUMBER)
-        t.author = self.getName()
-        self.lamport_clock.increment()
-        t.update_lamport_clock(self.lamport_clock)
-        print(f"{self} Token => send token to {t.recipient} {self.lamport_clock}")
-        t.post()
-
-    @subscribe(threadMode=Mode.PARALLEL, onEvent=Token)
-    def onToken(self, token):
-        if not self.alive:
-            return
-        if token.recipient != self.getName():
-            return
-
-        assert self.state != State.SC, "Error : unstable state ! " + self.getName()
-        assert self.state != State.RELEASE, "Error : unstable state ! " + self.getName()
-        self.lamport_clock.update(token)
-        print(f"{self} ONToken => received token from {token.author} {self.lamport_clock}")
-        if self.state == None:
-            sleep(token.min_wait)
-        elif self.state == State.REQUEST:
-            self.state = State.SC
-            while self.state != State.RELEASE:
-                sleep(token.min_wait)
-        self.state = None
-        self.sendToken(token)
 
     def synchronize(self):
         self.answered_process = set()
