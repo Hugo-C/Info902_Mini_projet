@@ -72,6 +72,9 @@ class Process(Thread):
         if self.getName() == "1":
             t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
             self.com.send_token(t)
+        sleep(int(self.getName()))
+        self.com.synchronize()
+        print("Synchronize !!!")
         loop = 0
         self.critical_work()
         while self.alive:
@@ -116,43 +119,6 @@ class Process(Thread):
         print(f"{self} SC => state : {self.com.state}")
         sleep(1)
         self.com.release_sc()
-
-    def synchronize(self):
-        self.answered_process = set()
-        self.lamport_clock.increment()
-        m = Synchronize(lamport_clock=self.lamport_clock, author=self.getName())
-        print(f"{self} Synchronize => {self.lamport_clock}")
-        m.post()
-        while len(self.answered_process) < PROCESS_NUMBER - 1 and self.alive:
-            sleep(1)
-
-    @subscribe(onEvent=Synchronize)
-    def onSynchronize(self, m):
-        if not isinstance(m, Synchronize):
-            print(f"{self} Synchronize => {self.getName()} Invalid object type is passed.")
-            return
-        if m.author == self.getName():
-            return
-        self.lamport_clock.update(m)
-        print(f"{self} Synchronize from {m.author} => {self.lamport_clock}")
-        self.synchronizeAck(m.author)
-
-    def synchronizeAck(self, recipient):
-        self.lamport_clock.increment()
-        m = SynchronizeAck(lamport_clock=self.lamport_clock, author=self.getName(), recipient=recipient)
-        print(f"{self} SynchronizeAck => respond to {recipient} {self.lamport_clock}")
-        m.post()
-
-    @subscribe(threadMode=Mode.PARALLEL, onEvent=SynchronizeAck)
-    def onSynchronizeAck(self, m):
-        if not isinstance(m, SynchronizeAck):
-            print(f"{self} SynchronizeAck => {self.getName()} Invalid object type is passed.")
-            return
-        if m.recipient != self.getName():
-            return
-        self.lamport_clock.update(m)
-        print(f"{self} SynchronizeAck from {m.author} => {self.lamport_clock}")
-        self.answered_process.add(m.author)
 
     def roll_dice(self):
         return random.randint(1, DICE_FACE)

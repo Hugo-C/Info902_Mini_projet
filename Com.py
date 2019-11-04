@@ -7,7 +7,7 @@ from pyeventbus3.pyeventbus3 import PyBus
 from pyeventbus3.pyeventbus3 import subscribe
 
 from LamportClock import LamportClock
-from Message import BroadcastMessage, DedicatedMessage, Token
+from Message import BroadcastMessage, DedicatedMessage, Token, Synchronize, SynchronizeAck
 
 State = Enum("State", "REQUEST SC RELEASE")
 PROCESS_NUMBER = 3
@@ -19,6 +19,7 @@ class Com:
         self.letterbox = deque()
         self.lamport_clock = LamportClock()
         self.state = None
+        self.answered_process = set()
 
         PyBus.Instance().register(self, self)
 
@@ -106,3 +107,48 @@ class Com:
         assert self.state == State.SC, "Error : unstable state !"
         self.state = State.RELEASE
         print(f"{self} RELEASE => state : {self.state}")
+
+    def synchronize(self):
+        self.answered_process = set()
+        self.lamport_clock.lock_clock()
+        self.lamport_clock.increment()
+        m = Synchronize(lamport_clock=self.lamport_clock, author=self.process.getName())
+        print(f"{self} Synchronize => {self.lamport_clock}")
+        self.lamport_clock.unlock_clock()
+        m.post()
+        while len(self.answered_process) < PROCESS_NUMBER - 1 and self.process.alive:
+            sleep(1)
+
+    @subscribe(onEvent=Synchronize)
+    def on_synchronize(self, m):
+        if not isinstance(m, Synchronize):
+            print(f"{self} Synchronize => {self.process.getName()} Invalid object type is passed.")
+            return
+        if m.author == self.process.getName():
+            return
+        self.lamport_clock.lock_clock()
+        self.lamport_clock.update(m)
+        print(f"{self} Synchronize from {m.author} => {self.lamport_clock}")
+        self.lamport_clock.unlock_clock()
+        self.synchronize_ack(m.author)
+
+    def synchronize_ack(self, recipient):
+        self.lamport_clock.lock_clock()
+        self.lamport_clock.increment()
+        m = SynchronizeAck(lamport_clock=self.lamport_clock, author=self.process.getName(), recipient=recipient)
+        print(f"{self} SynchronizeAck => respond to {recipient} {self.lamport_clock}")
+        self.lamport_clock.unlock_clock()
+        m.post()
+
+    @subscribe(threadMode=Mode.PARALLEL, onEvent=SynchronizeAck)
+    def on_synchronize_ack(self, m):
+        if not isinstance(m, SynchronizeAck):
+            print(f"{self} SynchronizeAck => {self.process.getName()} Invalid object type is passed.")
+            return
+        if m.recipient != self.process.getName():
+            return
+        self.lamport_clock.lock_clock()
+        self.lamport_clock.update(m)
+        print(f"{self} SynchronizeAck from {m.author} => {self.lamport_clock}")
+        self.lamport_clock.unlock_clock()
+        self.answered_process.add(m.author)
