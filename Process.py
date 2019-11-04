@@ -42,7 +42,7 @@ class Process(Thread):
     @subscribe(threadMode=Mode.PARALLEL, onEvent=Message)
     def process(self, event):
         self.lamport_clock.update(event)
-        print(f" data : {event.getData()}  {self.lamport_clock}")
+        print(f" data : {event.get_payload()}  {self.lamport_clock}")
 
     def run_old(self):
         """ method run to test all messages """
@@ -69,14 +69,20 @@ class Process(Thread):
     def run(self):
         """ method run for the roll dice """
         sleep(1)
-        if self.getName() == "1":
-            t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
-            self.com.send_token(t)
-        sleep(int(self.getName()))
-        self.com.synchronize()
-        print("Synchronize !!!")
+        # if self.getName() == "1":
+        #     t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
+        #     self.com.send_token(t)
+        # sleep(int(self.getName()))
+        # self.com.synchronize()
+        # print("Synchronize !!!")
+
+        m = self.com.broadcast_sync("wow", "0")
+        if m:
+            print(f"{self} : {m}")
+
+
         loop = 0
-        self.critical_work()
+        # self.critical_work()
         while self.alive:
 
             # # roll dice
@@ -110,7 +116,7 @@ class Process(Thread):
             print(f"{self} result writed {self.lamport_clock}")
 
     def stop(self):
-        print(f"{self} RECEIVED stop message {self.lamport_clock}")
+        print(f"{self} RECEIVED stop message {self.com.lamport_clock}")
         self.alive = False
         self.join()
 

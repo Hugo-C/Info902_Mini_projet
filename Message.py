@@ -7,7 +7,7 @@ class Message:
         self.payload = payload
         self.stamp = lamport_clock.clock
 
-    def getData(self):
+    def get_payload(self):
         return self.payload
 
     def getStamp(self):
@@ -18,11 +18,18 @@ class Message:
         """Post this message on the bus"""
         PyBus.Instance().post(self)
 
+    def __repr__(self):
+        return f"<Message: {self.payload}>"
+
 
 class BroadcastMessage(Message):
     def __init__(self, data, *, lamport_clock, author):
         super().__init__(data, lamport_clock=lamport_clock)
         self.author = author
+
+
+class BroadcastMessageSync(BroadcastMessage):
+    pass
 
 
 class Synchronize(BroadcastMessage):
@@ -40,6 +47,10 @@ class DedicatedMessage(Message):
 class SynchronizeAck(DedicatedMessage):
     def __init__(self, *, lamport_clock, author, recipient):
         super().__init__("", lamport_clock=lamport_clock, author=author, recipient=recipient)
+
+
+class BroadcastSyncAck(SynchronizeAck):
+    pass
 
 
 class Token(DedicatedMessage):
