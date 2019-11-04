@@ -4,10 +4,8 @@ from time import sleep
 
 from pyeventbus3.pyeventbus3 import *
 
-from Event import BroadcastMessage
-from Event import DedicatedMessage
-from Event import Message, Synchronize, SynchronizeAck
-from Event import Token
+from Com import Com
+from Message import *
 from LamportClock import LamportClock
 
 State = Enum("State", "REQUEST SC RELEASE")
@@ -33,8 +31,6 @@ class Process(Thread):
         self.setName(name)
        
         self.state = None
-
-        PyBus.Instance().register(self, self)
 
         self.alive = True
         self.start()
@@ -79,13 +75,14 @@ class Process(Thread):
         # if self.getName() == "1":
         #     t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
         #     self.sendToken(t)
-        # loop = 0
+        loop = 0
         while self.alive:
 
             # # roll dice
             # dice_value = self.roll_dice()
             # self.dice_result = {self.getName(): dice_value}
-            self.com.broadcast(f"youou")
+            if loop == 0 and self.getName() != "0":
+                self.com.send_to(f"youou", "0")
 
             # # wait that all players have play
             # while len(self.dice_result) < PROCESS_NUMBER and self.alive:
@@ -97,7 +94,7 @@ class Process(Thread):
             #     if self.getName() == process:
             #         self.write_result(process, res)
             #     self.synchronize()
-            #     loop += 1
+            loop += 1
         print(f"{self} stopped")
 
     def write_result(self, process, result):
@@ -117,25 +114,6 @@ class Process(Thread):
         print(f"{self} RECEIVED stop message {self.lamport_clock}")
         self.alive = False
         self.join()
-
-   
-
-    def sendTo(self, data, id):
-        self.lamport_clock.increment()
-        dm = DedicatedMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName(), recipient=id)
-        print(f"{self} DedicatedMessage => send: {data} to {id} {self.lamport_clock}")
-        dm.post()
-
-    @subscribe(onEvent=DedicatedMessage)
-    def onReceive(self, m):
-        if not isinstance(m, DedicatedMessage):
-            print(f"{self} ONDedicatedMessage => Invalid object type is passed.")
-            return
-        if m.recipient != self.getName():
-            return
-        data = m.getData()
-        self.lamport_clock.update(m)
-        print(f"{self} ONDedicatedMessage from {m.author} => received: {data} {self.lamport_clock}")
 
     def request(self):
         self.state = State.REQUEST

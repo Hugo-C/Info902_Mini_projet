@@ -1,5 +1,6 @@
 from threading import Lock
 
+
 class LamportClock:
 
     def __init__(self):
@@ -19,4 +20,4 @@ class LamportClock:
         self.mutex.release()
 
     def __repr__(self):
-        return f"⏱ {self.clock}"
+        return f"⏱🕒⏰⏰⏰⏰⏰⏰⏰⏲️⏲️⏲️⏲️⏲️ H:{self.clock}"
