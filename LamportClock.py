@@ -20,4 +20,4 @@ class LamportClock:
         self.mutex.release()
 
     def __repr__(self):
-        return f"⏱🕒⏰⏰⏰⏰⏰⏰⏰⏲️⏲️⏲️⏲️⏲️ H:{self.clock}"
+        return f"⏰:{self.clock}"

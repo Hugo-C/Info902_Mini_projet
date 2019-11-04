@@ -2,7 +2,7 @@ from collections import deque
 from enum import Enum
 from time import sleep
 
-from pyeventbus3.pyeventbus import Mode
+from pyeventbus3.pyeventbus3 import Mode
 from pyeventbus3.pyeventbus3 import PyBus
 from pyeventbus3.pyeventbus3 import subscribe
 
@@ -68,7 +68,7 @@ class Com:
         print(f"{self} ONDedicatedMessage from {m.author} => received: {data} {self.lamport_clock}")
         self.lamport_clock.unlock_clock()
 
-    def send_token(self, t):
+    def send_token(self, t):  # TODO  test with a custom thread
         process_position = int(self.process.getName())
         t.recipient = str((process_position + 1) % PROCESS_NUMBER)
         t.author = self.process.getName()
@@ -94,3 +94,15 @@ class Com:
                 sleep(token.min_wait)
         self.state = None
         self.send_token(token)
+
+    def request_sc(self):
+        self.state = State.REQUEST
+        print(f"{self} REQUEST => state : {self.state}")
+        while self.state != self.state.SC and self.process.alive:
+            sleep(1)
+        print(f"{self} REQUEST => state : {self.state}")
+
+    def release_sc(self):
+        assert self.state == State.SC, "Error : unstable state !"
+        self.state = State.RELEASE
+        print(f"{self} RELEASE => state : {self.state}")

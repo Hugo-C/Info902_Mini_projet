@@ -69,17 +69,16 @@ class Process(Thread):
     def run(self):
         """ method run for the roll dice """
         sleep(1)
-        # if self.getName() == "1":
-        #     t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
-        #     self.sendToken(t)
+        if self.getName() == "1":
+            t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
+            self.com.send_token(t)
         loop = 0
+        self.critical_work()
         while self.alive:
 
             # # roll dice
             # dice_value = self.roll_dice()
             # self.dice_result = {self.getName(): dice_value}
-            if loop == 0 and self.getName() != "0":
-                self.com.send_to(f"youou", "0")
 
             # # wait that all players have play
             # while len(self.dice_result) < PROCESS_NUMBER and self.alive:
@@ -112,22 +111,11 @@ class Process(Thread):
         self.alive = False
         self.join()
 
-    def request(self):
-        self.state = State.REQUEST
-        print(f"{self} REQUEST => state : {self.state}")
-
-    def release(self):
-        assert self.state == State.SC, "Error : unstable state !"
-        self.state = State.RELEASE
-        print(f"{self} RELEASE => state : {self.state}")
-
     def critical_work(self):
-        self.request()
-        while self.state != State.SC and self.alive:
-            sleep(1)
-        print(f"{self} SC => state : {self.state}")
+        self.com.request_sc()
+        print(f"{self} SC => state : {self.com.state}")
         sleep(1)
-        self.release()
+        self.com.release_sc()
 
     def synchronize(self):
         self.answered_process = set()
