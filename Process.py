@@ -6,7 +6,7 @@ from pyeventbus3.pyeventbus3 import *
 
 from Event import BroadcastMessage
 from Event import DedicatedMessage
-from Event import Event, Synchronize, SynchronizeAck
+from Event import Message, Synchronize, SynchronizeAck
 from Event import Token
 from LamportClock import LamportClock
 
@@ -31,7 +31,7 @@ class Process(Thread):
         Thread.__init__(self)
 
         self.setName(name)
-        self.lamport_clock = LamportClock()
+       
         self.state = None
 
         PyBus.Instance().register(self, self)
@@ -41,10 +41,12 @@ class Process(Thread):
         self.answered_process = set()
         self.dice_result = {}
 
+        self.com = Com(self)
+
     def __repr__(self):
         return f"[⚙ {self.getName()}]"
 
-    @subscribe(threadMode=Mode.PARALLEL, onEvent=Event)
+    @subscribe(threadMode=Mode.PARALLEL, onEvent=Message)
     def process(self, event):
         self.lamport_clock.update(event)
         print(f" data : {event.getData()}  {self.lamport_clock}")
@@ -74,28 +76,28 @@ class Process(Thread):
     def run(self):
         """ method run for the roll dice """
         sleep(1)
-        if self.getName() == "1":
-            t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
-            self.sendToken(t)
-        loop = 0
+        # if self.getName() == "1":
+        #     t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
+        #     self.sendToken(t)
+        # loop = 0
         while self.alive:
 
-            # roll dice
-            dice_value = self.roll_dice()
-            self.dice_result = {self.getName(): dice_value}
-            self.broadcast(f"dice_value:{dice_value}")
+            # # roll dice
+            # dice_value = self.roll_dice()
+            # self.dice_result = {self.getName(): dice_value}
+            self.com.broadcast(f"youou")
 
-            # wait that all players have play
-            while len(self.dice_result) < PROCESS_NUMBER and self.alive:
-                sleep(0.5)
+            # # wait that all players have play
+            # while len(self.dice_result) < PROCESS_NUMBER and self.alive:
+            #     sleep(0.5)
 
-            if self.alive:
-                # look at who is the winner and write his result in a file
-                process, res = who_is_winner(self.dice_result)
-                if self.getName() == process:
-                    self.write_result(process, res)
-                self.synchronize()
-                loop += 1
+            # if self.alive:
+            #     # look at who is the winner and write his result in a file
+            #     process, res = who_is_winner(self.dice_result)
+            #     if self.getName() == process:
+            #         self.write_result(process, res)
+            #     self.synchronize()
+            #     loop += 1
         print(f"{self} stopped")
 
     def write_result(self, process, result):
@@ -116,24 +118,7 @@ class Process(Thread):
         self.alive = False
         self.join()
 
-    def broadcast(self, data):
-        self.lamport_clock.increment()
-        bm = BroadcastMessage(data=data, lamport_clock=self.lamport_clock, author=self.getName())
-        print(f"{self} Broadcast => send: {data} {self.lamport_clock}")
-        bm.post()
-
-    @subscribe(onEvent=BroadcastMessage)
-    def onBroadcast(self, m):
-        if not isinstance(m, BroadcastMessage):
-            print(f"{self} ONBroadcast => {self.getName()} Invalid object type is passed.")
-            return
-        if m.author == self.getName():
-            return
-        data = m.getData()
-        self.lamport_clock.update(m)
-        print(f"{self} ONBroadcast from {m.author} => received : {data} + {self.lamport_clock}")
-        if "dice_value" in data:
-            self.dice_result[m.author] = int(data.split(":")[1])
+   
 
     def sendTo(self, data, id):
         self.lamport_clock.increment()
