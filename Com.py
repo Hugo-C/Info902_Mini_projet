@@ -8,7 +8,7 @@ from pyeventbus3.pyeventbus3 import subscribe
 
 from LamportClock import LamportClock
 from Message import BroadcastMessage, DedicatedMessage, Token, Synchronize, SynchronizeAck, BroadcastMessageSync, \
-    BroadcastSyncAck
+    BroadcastSyncAck, DedicatedMessageSync, DedicatedMessageSyncAck
 
 State = Enum("State", "REQUEST SC RELEASE")
 PROCESS_NUMBER = 3
@@ -22,6 +22,7 @@ class Com:
         self.state = None
         self.answered_process = set()
         self.answered_process_broadcast_sync = set()
+        self.have_process_sync_responded = False
 
         PyBus.Instance().register(self, self)
 
@@ -208,3 +209,50 @@ class Com:
         print(f"{self} BroadcastSyncAck from {m.author} => {self.lamport_clock}")
         self.lamport_clock.unlock_clock()
         self.answered_process_broadcast_sync.add(m.author)
+
+    def send_to_sync(self, data, dest):
+        self.have_process_sync_responded = False
+        self.lamport_clock.lock_clock()
+        self.lamport_clock.increment()
+        dm = DedicatedMessageSync(data=data, lamport_clock=self.lamport_clock, author=self.process.getName(), recipient=dest)
+        print(f"{self} DedicatedMessageSync => send: {data} to {dest} {self.lamport_clock}")
+        self.lamport_clock.unlock_clock()
+        dm.post()
+        while not self.have_process_sync_responded:
+            sleep(1)
+
+    @subscribe(onEvent=DedicatedMessageSync)
+    def receive_from_sync(self, m):
+        if not isinstance(m, DedicatedMessageSync):
+            print(f"{self} ONDedicatedMessageSync => Invalid object type is passed.")
+            return
+        if m.recipient != self.process.getName():
+            return
+        data = m.get_payload()
+        self.lamport_clock.lock_clock()
+        self.lamport_clock.update(m)
+        print(f"{self} ONDedicatedMessageSync from {m.author} => received: {data} {self.lamport_clock}")
+        self.lamport_clock.unlock_clock()
+        self.send_to_sync_ack(m.author)
+
+    def send_to_sync_ack(self, recipient):
+        self.lamport_clock.lock_clock()
+        self.lamport_clock.increment()
+        m = DedicatedMessageSyncAck(lamport_clock=self.lamport_clock, author=self.process.getName(), recipient=recipient)
+        print(f"{self} DedicatedMessageSyncAck => respond to {recipient} {self.lamport_clock}")
+        self.lamport_clock.unlock_clock()
+        m.post()
+
+    @subscribe(threadMode=Mode.PARALLEL, onEvent=DedicatedMessageSyncAck)
+    def receive_from_sync_ack(self, m):
+        if not isinstance(m, DedicatedMessageSyncAck):
+            print(f"{self} DedicatedMessageSyncAck => {self.process.getName()} Invalid object type is passed.")
+            return
+        if m.recipient != self.process.getName():
+            return
+        self.lamport_clock.lock_clock()
+        self.lamport_clock.update(m)
+        print(f"{self} DedicatedMessageSyncAck from {m.author} => {self.lamport_clock}")
+        self.lamport_clock.unlock_clock()
+        self.have_process_sync_responded = True
+

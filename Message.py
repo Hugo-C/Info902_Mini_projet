@@ -44,9 +44,17 @@ class DedicatedMessage(Message):
         self.recipient = recipient
 
 
+class DedicatedMessageSync(DedicatedMessage):
+    pass
+
+
 class SynchronizeAck(DedicatedMessage):
     def __init__(self, *, lamport_clock, author, recipient):
         super().__init__("", lamport_clock=lamport_clock, author=author, recipient=recipient)
+
+
+class DedicatedMessageSyncAck(SynchronizeAck):
+    pass
 
 
 class BroadcastSyncAck(SynchronizeAck):
@@ -61,5 +69,3 @@ class Token(DedicatedMessage):
     def update_lamport_clock(self, lamport_clock):
         """Update the lamport clock since a token will be send several times"""
         self.stamp = lamport_clock.clock
-
-

@@ -44,28 +44,6 @@ class Process(Thread):
         self.lamport_clock.update(event)
         print(f" data : {event.get_payload()}  {self.lamport_clock}")
 
-    def run_old(self):
-        """ method run to test all messages """
-        if self.getName() == "0":
-            sleep(2)
-            self.synchronize()
-        elif self.getName() == "1":
-            sleep(1)
-            t = Token(lamport_clock=LamportClock(), author="", recipient="", min_wait=1)
-            self.sendToken(t)
-        elif self.getName() == "2":
-            sleep(0.5)
-            self.critical_work()
-        loop = 0
-        while self.alive:
-            sleep(1)
-            self.sendTo("ga", "2")
-            if self.getName() == "0":
-                self.broadcast("bu")
-
-            loop += 1
-        print(f"{self} stopped")
-
     def run(self):
         """ method run for the roll dice """
         sleep(1)
@@ -76,10 +54,8 @@ class Process(Thread):
         # self.com.synchronize()
         # print("Synchronize !!!")
 
-        m = self.com.broadcast_sync("wow", "0")
-        if m:
-            print(f"{self} : {m}")
-
+        if self.getName() == "0":
+            self.com.send_to_sync("wow", "0")
 
         loop = 0
         # self.critical_work()
