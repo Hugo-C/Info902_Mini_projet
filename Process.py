@@ -23,6 +23,10 @@ def who_is_winner(dict_of_result):
     return winner, max_res
 
 
+def roll_dice():
+    return random.randint(1, DICE_FACE)
+
+
 class Process(BaseProcess):
 
     def __init__(self, name):
@@ -43,56 +47,55 @@ class Process(BaseProcess):
         self.lamport_clock.update(event)
         print(f" data : {event.get_payload()}  {self.lamport_clock}")
 
-    def hello_world(self, m: Message):
-        print(f"{self} hello world ! {m}")
-
     def run(self):
         """ method run for the roll dice """
         sleep(0.5)
-        self.com.register_function(self.hello_world, tag="my_tag")
+        self.com.register_function(self.receive_dice_value, tag="dice_value")
         sleep(0.5)
 
-        # if self.getName() == "1":
-        #     t = Token(lamport_clock=self.lamport_clock, author="", recipient="", min_wait=1)
-        #     self.com.send_token(t)
-        # sleep(int(self.getName()))
-        # self.com.synchronize()
-        # print("Synchronize !!!")
-
-        self.com.broadcast_sync("some data", "0", tag="my_tag")
+        if self.getName() == "1":
+            t = Token(lamport_clock=self.lamport_clock, author="", recipient="", min_wait=1)
+            self.com.send_token(t)
+        sleep(int(self.getName()))
+        self.com.synchronize()
+        print("Synchronize !!!")
 
         loop = 0
-        # self.critical_work()
         while self.alive:
 
-            # # roll dice
-            # dice_value = self.roll_dice()
-            # self.dice_result = {self.getName(): dice_value}
+            # roll dice
+            dice_value = roll_dice()
+            self.dice_result = {self.getName(): dice_value}
+            self.com.broadcast(f"dice_value:{dice_value}", tag="dice_value")
 
-            # # wait that all players have play
-            # while len(self.dice_result) < PROCESS_NUMBER and self.alive:
-            #     sleep(0.5)
+            # wait that all players have play
+            while len(self.dice_result) < PROCESS_NUMBER and self.alive:
+                sleep(0.5)
 
-            # if self.alive:
-            #     # look at who is the winner and write his result in a file
-            #     process, res = who_is_winner(self.dice_result)
-            #     if self.getName() == process:
-            #         self.write_result(process, res)
-            #     self.synchronize()
+            if self.alive:
+                # look at who is the winner and write his result in a file
+                process, res = who_is_winner(self.dice_result)
+                if self.getName() == process:
+                    self.write_result(process, res)
+                self.com.synchronize()
             loop += 1
         print(f"{self} stopped")
+
+    def receive_dice_value(self, m):
+        data = m.payload
+        print(f"{self} Receive_dice_value from {m.author} => received : {data} + {self.lamport_clock}")
+        if "dice_value" in data:
+            self.dice_result[m.author] = int(data.split(":")[1])
 
     def write_result(self, process, result):
         """ write in a file the winner's result of the last roll dice """
         print(f"{self} writing result {self.lamport_clock}")
-        self.request()
-        while self.state != State.SC and self.alive:
-            sleep(1)
+        self.com.request_sc()
         if self.alive:
             self.lamport_clock.increment()
             with open(RESULT_FILENAME, "a+") as f:
                 f.write(f"{process} : {result}\n")
-            self.release()
+            self.com.release_sc()
             print(f"{self} result writed {self.lamport_clock}")
 
     def stop(self):
@@ -106,5 +109,3 @@ class Process(BaseProcess):
         sleep(1)
         self.com.release_sc()
 
-    def roll_dice(self):
-        return random.randint(1, DICE_FACE)

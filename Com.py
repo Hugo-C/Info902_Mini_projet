@@ -45,7 +45,7 @@ class Com:
 
     def broadcast(self, data, tag=None):
         self.process.lamport_clock.lock_clock()
-        self.process.lamport_clock.increment_clock()
+        self.process.lamport_clock.increment()
         bm = BroadcastMessage(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName(), tag=tag)
         print(f"{self} Broadcast => send: {data} {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
@@ -118,7 +118,7 @@ class Com:
     def request_sc(self):
         self.state = State.REQUEST
         print(f"{self} REQUEST => state : {self.state}")
-        while self.state != self.state.SC and self.process.alive:
+        while self.state != State.SC and self.process.alive:
             sleep(1)
         print(f"{self} REQUEST => state : {self.state}")
 
