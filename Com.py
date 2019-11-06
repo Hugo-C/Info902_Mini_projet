@@ -1,6 +1,7 @@
 from collections import deque
 from enum import Enum
 from time import sleep
+from typing import Dict, Callable, List
 
 from pyeventbus3.pyeventbus3 import Mode
 from pyeventbus3.pyeventbus3 import PyBus
@@ -8,7 +9,7 @@ from pyeventbus3.pyeventbus3 import subscribe
 
 from BaseProcess import BaseProcess
 from Message import BroadcastMessage, DedicatedMessage, Token, Synchronize, SynchronizeAck, BroadcastMessageSync, \
-    BroadcastSyncAck, DedicatedMessageSync, DedicatedMessageSyncAck
+    BroadcastSyncAck, DedicatedMessageSync, DedicatedMessageSyncAck, Message
 
 State = Enum("State", "REQUEST SC RELEASE")
 PROCESS_NUMBER = 3
@@ -16,6 +17,7 @@ PROCESS_NUMBER = 3
 
 class Com:
     def __init__(self, process):
+        self._callbacks: Dict[str, List[Callable[[Message], None]]] = {}
         self.process: BaseProcess = process
         self.letterbox = deque()
         self.state = None
@@ -28,10 +30,23 @@ class Com:
     def __repr__(self):
         return f"[⚙ {self.process.getName()}]"
 
-    def broadcast(self, data):
-        self.process.lock_clock()
-        self.process.increment_clock()
-        bm = BroadcastMessage(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName())
+    def register_function(self, f, *, tag):
+        """If com received a message with the given tag, trigger f"""
+        functions = self._callbacks.get(tag, [])
+        functions.append(f)
+        self._callbacks[tag] = functions
+
+    def trigger_function(self, m: Message):
+        if m.tag is None or m.tag not in self._callbacks:
+            return
+        functions = self._callbacks[m.tag]
+        for f in functions:
+            f(m)
+
+    def broadcast(self, data, tag=None):
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.increment_clock()
+        bm = BroadcastMessage(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName(), tag=tag)
         print(f"{self} Broadcast => send: {data} {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
         bm.post()
@@ -48,11 +63,12 @@ class Com:
         self.process.lamport_clock.update(m)
         print(f"{self} ONBroadcast from {m.author} => received : {data} + {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
+        self.trigger_function(m)
 
-    def send_to(self, data, id):
+    def send_to(self, data, id, tag=None):
         self.process.lamport_clock.lock_clock()
         self.process.lamport_clock.increment()
-        dm = DedicatedMessage(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName(), recipient=id)
+        dm = DedicatedMessage(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName(), recipient=id, tag=tag)
         print(f"{self} DedicatedMessage => send: {data} to {id} {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
         dm.post()
@@ -70,6 +86,7 @@ class Com:
         self.process.lamport_clock.update(m)
         print(f"{self} ONDedicatedMessage from {m.author} => received: {data} {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
+        self.trigger_function(m)
 
     def send_token(self, t):  # TODO  test with a custom thread
         process_position = int(self.process.getName())
@@ -155,12 +172,12 @@ class Com:
         self.process.lamport_clock.unlock_clock()
         self.answered_process.add(m.author)
 
-    def broadcast_sync(self, data, from_id):
+    def broadcast_sync(self, data, from_id, tag=None):
         if from_id == self.process.getName():
             self.answered_process_broadcast_sync = set()
             self.process.lamport_clock.lock_clock()
             self.process.lamport_clock.increment()
-            bm = BroadcastMessageSync(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName())
+            bm = BroadcastMessageSync(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName(), tag=tag)
             print(f"{self} Broadcast => send: {data} {self.process.lamport_clock}")
             self.process.lamport_clock.unlock_clock()
             bm.post()
@@ -186,6 +203,7 @@ class Com:
         self.letterbox.append(m)
         print(f"{self} BroadcastMessageSync from {m.author} => {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
+        self.trigger_function(m)
         self.broadcast_sync_ack(m.author)
 
     def broadcast_sync_ack(self, recipient):
@@ -209,11 +227,11 @@ class Com:
         self.process.lamport_clock.unlock_clock()
         self.answered_process_broadcast_sync.add(m.author)
 
-    def send_to_sync(self, data, dest):
+    def send_to_sync(self, data, dest, tag=None):
         self.have_process_sync_responded = False
         self.process.lamport_clock.lock_clock()
         self.process.lamport_clock.increment()
-        dm = DedicatedMessageSync(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName(), recipient=dest)
+        dm = DedicatedMessageSync(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName(), recipient=dest, tag=tag)
         print(f"{self} DedicatedMessageSync => send: {data} to {dest} {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
         dm.post()
@@ -233,6 +251,7 @@ class Com:
         print(f"{self} ONDedicatedMessageSync from {m.author} => received: {data} {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
         self.send_to_sync_ack(m.author)
+        self.trigger_function(m)
 
     def send_to_sync_ack(self, recipient):
         self.process.lamport_clock.lock_clock()

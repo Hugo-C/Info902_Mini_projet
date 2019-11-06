@@ -3,9 +3,10 @@ from pyeventbus3.pyeventbus3 import PyBus
 
 # Base class, used by other Message class
 class Message:
-    def __init__(self, payload, *, lamport_clock):
+    def __init__(self, payload, *, lamport_clock, tag=None):
         self.payload = payload
         self.stamp = lamport_clock.clock
+        self.tag = tag
 
     def get_payload(self):
         return self.payload
@@ -23,8 +24,8 @@ class Message:
 
 
 class BroadcastMessage(Message):
-    def __init__(self, data, *, lamport_clock, author):
-        super().__init__(data, lamport_clock=lamport_clock)
+    def __init__(self, data, *, lamport_clock, author, tag=None):
+        super().__init__(data, lamport_clock=lamport_clock, tag=tag)
         self.author = author
 
 
@@ -38,8 +39,8 @@ class Synchronize(BroadcastMessage):
 
 
 class DedicatedMessage(Message):
-    def __init__(self, data, *, lamport_clock, author, recipient):
-        super().__init__(data, lamport_clock=lamport_clock)
+    def __init__(self, data, *, lamport_clock, author, recipient, tag=None):
+        super().__init__(data, lamport_clock=lamport_clock, tag=tag)
         self.author = author
         self.recipient = recipient
 
@@ -49,8 +50,8 @@ class DedicatedMessageSync(DedicatedMessage):
 
 
 class SynchronizeAck(DedicatedMessage):
-    def __init__(self, *, lamport_clock, author, recipient):
-        super().__init__("", lamport_clock=lamport_clock, author=author, recipient=recipient)
+    def __init__(self, *, lamport_clock, author, recipient, tag=None):
+        super().__init__("", lamport_clock=lamport_clock, author=author, recipient=recipient, tag=tag)
 
 
 class DedicatedMessageSyncAck(SynchronizeAck):

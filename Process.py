@@ -43,9 +43,15 @@ class Process(BaseProcess):
         self.lamport_clock.update(event)
         print(f" data : {event.get_payload()}  {self.lamport_clock}")
 
+    def hello_world(self, m: Message):
+        print(f"{self} hello world ! {m}")
+
     def run(self):
         """ method run for the roll dice """
-        sleep(1)
+        sleep(0.5)
+        self.com.register_function(self.hello_world, tag="my_tag")
+        sleep(0.5)
+
         # if self.getName() == "1":
         #     t = Token(lamport_clock=self.lamport_clock, author="", recipient="", min_wait=1)
         #     self.com.send_token(t)
@@ -53,8 +59,7 @@ class Process(BaseProcess):
         # self.com.synchronize()
         # print("Synchronize !!!")
 
-        if self.getName() == "0":
-            self.com.send_to_sync("wow", "0")
+        self.com.broadcast_sync("some data", "0", tag="my_tag")
 
         loop = 0
         # self.critical_work()
