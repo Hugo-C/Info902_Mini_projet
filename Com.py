@@ -6,7 +6,7 @@ from pyeventbus3.pyeventbus3 import Mode
 from pyeventbus3.pyeventbus3 import PyBus
 from pyeventbus3.pyeventbus3 import subscribe
 
-from LamportClock import LamportClock
+from BaseProcess import BaseProcess
 from Message import BroadcastMessage, DedicatedMessage, Token, Synchronize, SynchronizeAck, BroadcastMessageSync, \
     BroadcastSyncAck, DedicatedMessageSync, DedicatedMessageSyncAck
 
@@ -16,9 +16,8 @@ PROCESS_NUMBER = 3
 
 class Com:
     def __init__(self, process):
-        self.process = process
+        self.process: BaseProcess = process
         self.letterbox = deque()
-        self.lamport_clock = LamportClock()
         self.state = None
         self.answered_process = set()
         self.answered_process_broadcast_sync = set()
@@ -30,11 +29,11 @@ class Com:
         return f"[⚙ {self.process.getName()}]"
 
     def broadcast(self, data):
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.increment()
-        bm = BroadcastMessage(data=data, lamport_clock=self.lamport_clock, author=self.process.getName())
-        print(f"{self} Broadcast => send: {data} {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lock_clock()
+        self.process.increment_clock()
+        bm = BroadcastMessage(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName())
+        print(f"{self} Broadcast => send: {data} {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         bm.post()
 
     @subscribe(onEvent=BroadcastMessage)
@@ -45,17 +44,17 @@ class Com:
         if m.author == self.process.getName():
             return
         data = m.get_payload()
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.update(m)
-        print(f"{self} ONBroadcast from {m.author} => received : {data} + {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.update(m)
+        print(f"{self} ONBroadcast from {m.author} => received : {data} + {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
 
     def send_to(self, data, id):
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.increment()
-        dm = DedicatedMessage(data=data, lamport_clock=self.lamport_clock, author=self.process.getName(), recipient=id)
-        print(f"{self} DedicatedMessage => send: {data} to {id} {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.increment()
+        dm = DedicatedMessage(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName(), recipient=id)
+        print(f"{self} DedicatedMessage => send: {data} to {id} {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         dm.post()
 
     @subscribe(onEvent=DedicatedMessage)
@@ -67,17 +66,17 @@ class Com:
             # print(f"{self} ONDedicatedMessage => This message is not for me.")
             return
         data = m.get_payload()
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.update(m)
-        print(f"{self} ONDedicatedMessage from {m.author} => received: {data} {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.update(m)
+        print(f"{self} ONDedicatedMessage from {m.author} => received: {data} {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
 
     def send_token(self, t):  # TODO  test with a custom thread
         process_position = int(self.process.getName())
         t.recipient = str((process_position + 1) % PROCESS_NUMBER)
         t.author = self.process.getName()
-        t.update_lamport_clock(self.lamport_clock)
-        print(f"{self} Token => send token to {t.recipient} {self.lamport_clock}")
+        t.update_lamport_clock(self.process.lamport_clock)
+        print(f"{self} Token => send token to {t.recipient} {self.process.lamport_clock}")
         t.post()
 
     @subscribe(threadMode=Mode.PARALLEL, onEvent=Token)
@@ -89,7 +88,7 @@ class Com:
 
         assert self.state != State.SC, "Error : unstable state ! " + self.process.getName()
         assert self.state != State.RELEASE, "Error : unstable state ! " + self.process.getName()
-        print(f"{self} ONToken => received token from {token.author} {self.lamport_clock}")
+        print(f"{self} ONToken => received token from {token.author} {self.process.lamport_clock}")
         if self.state is None:
             sleep(token.min_wait)
         elif self.state == State.REQUEST:
@@ -113,11 +112,11 @@ class Com:
 
     def synchronize(self):
         self.answered_process = set()
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.increment()
-        m = Synchronize(lamport_clock=self.lamport_clock, author=self.process.getName())
-        print(f"{self} Synchronize => {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.increment()
+        m = Synchronize(lamport_clock=self.process.lamport_clock, author=self.process.getName())
+        print(f"{self} Synchronize => {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         m.post()
         while len(self.answered_process) < PROCESS_NUMBER - 1 and self.process.alive:
             sleep(1)
@@ -129,18 +128,18 @@ class Com:
             return
         if m.author == self.process.getName():
             return
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.update(m)
-        print(f"{self} Synchronize from {m.author} => {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.update(m)
+        print(f"{self} Synchronize from {m.author} => {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         self.synchronize_ack(m.author)
 
     def synchronize_ack(self, recipient):
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.increment()
-        m = SynchronizeAck(lamport_clock=self.lamport_clock, author=self.process.getName(), recipient=recipient)
-        print(f"{self} SynchronizeAck => respond to {recipient} {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.increment()
+        m = SynchronizeAck(lamport_clock=self.process.lamport_clock, author=self.process.getName(), recipient=recipient)
+        print(f"{self} SynchronizeAck => respond to {recipient} {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         m.post()
 
     @subscribe(threadMode=Mode.PARALLEL, onEvent=SynchronizeAck)
@@ -150,20 +149,20 @@ class Com:
             return
         if m.recipient != self.process.getName():
             return
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.update(m)
-        print(f"{self} SynchronizeAck from {m.author} => {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.update(m)
+        print(f"{self} SynchronizeAck from {m.author} => {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         self.answered_process.add(m.author)
 
     def broadcast_sync(self, data, from_id):
         if from_id == self.process.getName():
             self.answered_process_broadcast_sync = set()
-            self.lamport_clock.lock_clock()
-            self.lamport_clock.increment()
-            bm = BroadcastMessageSync(data=data, lamport_clock=self.lamport_clock, author=self.process.getName())
-            print(f"{self} Broadcast => send: {data} {self.lamport_clock}")
-            self.lamport_clock.unlock_clock()
+            self.process.lamport_clock.lock_clock()
+            self.process.lamport_clock.increment()
+            bm = BroadcastMessageSync(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName())
+            print(f"{self} Broadcast => send: {data} {self.process.lamport_clock}")
+            self.process.lamport_clock.unlock_clock()
             bm.post()
 
             while len(self.answered_process_broadcast_sync) != PROCESS_NUMBER - 1 and self.process.is_alive():
@@ -172,7 +171,7 @@ class Com:
             while len(self.letterbox) == 0 and self.process.is_alive():
                 sleep(1)
             m: BroadcastMessageSync = self.letterbox.popleft()
-            print(f"{self} BroadcastMessageSync => received: {m.get_payload()} {self.lamport_clock}")
+            print(f"{self} BroadcastMessageSync => received: {m.get_payload()} {self.process.lamport_clock}")
             return m
 
     @subscribe(threadMode=Mode.PARALLEL, onEvent=BroadcastMessageSync)
@@ -182,19 +181,19 @@ class Com:
             return
         if m.author == self.process.getName():
             return
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.update(m)
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.update(m)
         self.letterbox.append(m)
-        print(f"{self} BroadcastMessageSync from {m.author} => {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        print(f"{self} BroadcastMessageSync from {m.author} => {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         self.broadcast_sync_ack(m.author)
 
     def broadcast_sync_ack(self, recipient):
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.increment()
-        m = BroadcastSyncAck(lamport_clock=self.lamport_clock, author=self.process.getName(), recipient=recipient)
-        print(f"{self} BroadcastSyncAck => respond to {recipient} {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.increment()
+        m = BroadcastSyncAck(lamport_clock=self.process.lamport_clock, author=self.process.getName(), recipient=recipient)
+        print(f"{self} BroadcastSyncAck => respond to {recipient} {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         m.post()
 
     @subscribe(threadMode=Mode.PARALLEL, onEvent=BroadcastSyncAck)
@@ -204,19 +203,19 @@ class Com:
             return
         if m.recipient != self.process.getName():
             return
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.update(m)
-        print(f"{self} BroadcastSyncAck from {m.author} => {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.update(m)
+        print(f"{self} BroadcastSyncAck from {m.author} => {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         self.answered_process_broadcast_sync.add(m.author)
 
     def send_to_sync(self, data, dest):
         self.have_process_sync_responded = False
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.increment()
-        dm = DedicatedMessageSync(data=data, lamport_clock=self.lamport_clock, author=self.process.getName(), recipient=dest)
-        print(f"{self} DedicatedMessageSync => send: {data} to {dest} {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.increment()
+        dm = DedicatedMessageSync(data=data, lamport_clock=self.process.lamport_clock, author=self.process.getName(), recipient=dest)
+        print(f"{self} DedicatedMessageSync => send: {data} to {dest} {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         dm.post()
         while not self.have_process_sync_responded:
             sleep(1)
@@ -229,18 +228,18 @@ class Com:
         if m.recipient != self.process.getName():
             return
         data = m.get_payload()
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.update(m)
-        print(f"{self} ONDedicatedMessageSync from {m.author} => received: {data} {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.update(m)
+        print(f"{self} ONDedicatedMessageSync from {m.author} => received: {data} {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         self.send_to_sync_ack(m.author)
 
     def send_to_sync_ack(self, recipient):
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.increment()
-        m = DedicatedMessageSyncAck(lamport_clock=self.lamport_clock, author=self.process.getName(), recipient=recipient)
-        print(f"{self} DedicatedMessageSyncAck => respond to {recipient} {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.increment()
+        m = DedicatedMessageSyncAck(lamport_clock=self.process.lamport_clock, author=self.process.getName(), recipient=recipient)
+        print(f"{self} DedicatedMessageSyncAck => respond to {recipient} {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         m.post()
 
     @subscribe(threadMode=Mode.PARALLEL, onEvent=DedicatedMessageSyncAck)
@@ -250,9 +249,9 @@ class Com:
             return
         if m.recipient != self.process.getName():
             return
-        self.lamport_clock.lock_clock()
-        self.lamport_clock.update(m)
-        print(f"{self} DedicatedMessageSyncAck from {m.author} => {self.lamport_clock}")
-        self.lamport_clock.unlock_clock()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.update(m)
+        print(f"{self} DedicatedMessageSyncAck from {m.author} => {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
         self.have_process_sync_responded = True
 
