@@ -14,6 +14,8 @@ from Message import BroadcastMessage, DedicatedMessage, Token, Synchronize, Sync
 State = Enum("State", "REQUEST SC RELEASE")
 PROCESS_NUMBER = 3
 
+ACTIVE_WAIT_TIME = 0.2
+
 
 class Com:
     def __init__(self, process):
@@ -119,7 +121,7 @@ class Com:
         self.state = State.REQUEST
         print(f"{self} REQUEST => state : {self.state}")
         while self.state != State.SC and self.process.alive:
-            sleep(1)
+            sleep(ACTIVE_WAIT_TIME)
         print(f"{self} REQUEST => state : {self.state}")
 
     def release_sc(self):
@@ -136,7 +138,7 @@ class Com:
         self.process.lamport_clock.unlock_clock()
         m.post()
         while len(self.answered_process) < PROCESS_NUMBER - 1 and self.process.alive:
-            sleep(1)
+            sleep(ACTIVE_WAIT_TIME)
 
     @subscribe(onEvent=Synchronize)
     def on_synchronize(self, m):
@@ -183,10 +185,10 @@ class Com:
             bm.post()
 
             while len(self.answered_process_broadcast_sync) != PROCESS_NUMBER - 1 and self.process.is_alive():
-                sleep(1)
+                sleep(ACTIVE_WAIT_TIME)
         else:  # wait for a broadcast message from from_id
             while len(self.letterbox) == 0 and self.process.is_alive():
-                sleep(1)
+                sleep(ACTIVE_WAIT_TIME)
             m: BroadcastMessageSync = self.letterbox.popleft()
             print(f"{self} BroadcastMessageSync => received: {m.get_payload()} {self.process.lamport_clock}")
             return m
@@ -236,7 +238,7 @@ class Com:
         self.process.lamport_clock.unlock_clock()
         dm.post()
         while not self.have_process_sync_responded:
-            sleep(1)
+            sleep(ACTIVE_WAIT_TIME)
 
     @subscribe(onEvent=DedicatedMessageSync)
     def receive_from_sync(self, m):

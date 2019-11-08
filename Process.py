@@ -49,9 +49,9 @@ class Process(BaseProcess):
 
     def run(self):
         """ method run for the roll dice """
-        sleep(0.5)
+        sleep(0.1)
         self.com.register_function(self.receive_dice_value, tag="dice_value")
-        sleep(0.5)
+        sleep(0.1)
 
         if self.getName() == "1":
             t = Token(lamport_clock=self.lamport_clock, author="", recipient="", min_wait=1)
