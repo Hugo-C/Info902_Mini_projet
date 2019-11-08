@@ -66,6 +66,10 @@ class BroadcastSyncAck(SynchronizeAck):
     pass
 
 
+class Heartbit(BroadcastMessage):
+    pass
+
+
 class Token(DedicatedMessage):
     def __init__(self, *, lamport_clock, author, recipient, min_wait):
         super().__init__("", lamport_clock=lamport_clock, author=author, recipient=recipient)

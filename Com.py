@@ -9,12 +9,12 @@ from pyeventbus3.pyeventbus3 import subscribe
 
 from BaseProcess import BaseProcess
 from Message import BroadcastMessage, DedicatedMessage, Token, Synchronize, SynchronizeAck, BroadcastMessageSync, \
-    BroadcastSyncAck, DedicatedMessageSync, DedicatedMessageSyncAck, Message, JoinMessage
+    BroadcastSyncAck, DedicatedMessageSync, DedicatedMessageSyncAck, Message, JoinMessage, Heartbit
 
 State = Enum("State", "REQUEST SC RELEASE")
 
 ACTIVE_WAIT_TIME = 0.2
-WAIT_JOIN = 0.5
+RESPONSE_WAIT_TIME = 0.5
 
 
 class Com:
@@ -25,6 +25,7 @@ class Com:
         self.state = None
         self.answered_process = set()
         self.answered_process_broadcast_sync = set()
+        self.answered_process_heartbit = set()
         self.have_process_sync_responded = False
         self.process_number = 1
 
@@ -287,7 +288,7 @@ class Com:
         print(f"{self} JoinMessage => send: {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
         bm.post()
-        sleep(WAIT_JOIN)
+        sleep(RESPONSE_WAIT_TIME)
         self.process.name = str(len(self.answered_process_broadcast_sync))
         self.process_number = len(self.answered_process_broadcast_sync) + 1
         print(f"{self.process} init")
@@ -306,3 +307,22 @@ class Com:
         self.broadcast_sync_ack(m.author)
         self.process_number += 1
 
+    def send_heartbit(self):
+        self.answered_process_broadcast_sync = set()
+        m = Heartbit(data="", lamport_clock=self.process.lamport_clock, author=self.process.getName())
+        print(f"{self} Heartbit => send: {self.process.lamport_clock}")
+        m.post()
+        sleep(RESPONSE_WAIT_TIME)
+        if len(self.answered_process_broadcast_sync) < self.process_number:
+            print(f"{self.process} /!\\ one node is down, only {len(self.answered_process_broadcast_sync)} nodes are up")
+            self.process_number -= 1
+
+    @subscribe(threadMode=Mode.PARALLEL, onEvent=Heartbit)
+    def on_heartbit(self, m):
+        if not isinstance(m, Heartbit):
+            print(f"{self} Heartbit => {self.process.getName()} Invalid object type is passed.")
+            return
+        if m.author == self.process.getName():
+            return
+        print(f"{self} Heartbit from {m.author} => {self.process.lamport_clock}")
+        self.broadcast_sync_ack(m.author)

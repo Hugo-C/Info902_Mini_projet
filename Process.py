@@ -5,6 +5,7 @@ from pyeventbus3.pyeventbus3 import *
 
 from BaseProcess import BaseProcess
 from Com import Com
+from HeartbitProcess import HeartbitProcess
 from Message import *
 
 PROCESS_NUMBER = 3
@@ -39,6 +40,7 @@ class Process(BaseProcess):
         self.dice_result = {}
 
         self.com = Com(self)
+        self.heartbit_process = HeartbitProcess(self, self.com)
 
     def __repr__(self):
         return f"[⚙ {self.getName()}]"
