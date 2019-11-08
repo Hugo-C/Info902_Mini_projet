@@ -10,6 +10,7 @@ from Message import *
 PROCESS_NUMBER = 3
 DICE_FACE = 6
 RESULT_FILENAME = "results.txt"
+ACTIVE_WAIT_TIME = 0.2
 
 
 def who_is_winner(dict_of_result):
@@ -32,7 +33,7 @@ class Process(BaseProcess):
     def __init__(self, name):
         super().__init__()
         self.setName(name)
-       
+
         self.start()
         self.answered_process = set()
         self.dice_result = {}
@@ -49,9 +50,11 @@ class Process(BaseProcess):
 
     def run(self):
         """ method run for the roll dice """
+
+        sleep(0.1)
+        self.com.join_sync()
         sleep(0.1)
         self.com.register_function(self.receive_dice_value, tag="dice_value")
-        sleep(0.1)
 
         if self.getName() == "1":
             t = Token(lamport_clock=self.lamport_clock, author="", recipient="", min_wait=1)
@@ -108,4 +111,3 @@ class Process(BaseProcess):
         print(f"{self} SC => state : {self.com.state}")
         sleep(1)
         self.com.release_sc()
-

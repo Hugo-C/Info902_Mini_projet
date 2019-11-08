@@ -33,6 +33,10 @@ class BroadcastMessageSync(BroadcastMessage):
     pass
 
 
+class JoinMessage(BroadcastMessageSync):
+    pass
+
+
 class Synchronize(BroadcastMessage):
     def __init__(self, *, lamport_clock, author):
         super().__init__("", lamport_clock=lamport_clock, author=author)

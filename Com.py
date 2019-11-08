@@ -9,12 +9,12 @@ from pyeventbus3.pyeventbus3 import subscribe
 
 from BaseProcess import BaseProcess
 from Message import BroadcastMessage, DedicatedMessage, Token, Synchronize, SynchronizeAck, BroadcastMessageSync, \
-    BroadcastSyncAck, DedicatedMessageSync, DedicatedMessageSyncAck, Message
+    BroadcastSyncAck, DedicatedMessageSync, DedicatedMessageSyncAck, Message, JoinMessage
 
 State = Enum("State", "REQUEST SC RELEASE")
-PROCESS_NUMBER = 3
 
 ACTIVE_WAIT_TIME = 0.2
+WAIT_JOIN = 0.5
 
 
 class Com:
@@ -26,8 +26,11 @@ class Com:
         self.answered_process = set()
         self.answered_process_broadcast_sync = set()
         self.have_process_sync_responded = False
+        self.process_number = 1
 
         PyBus.Instance().register(self, self)
+
+
 
     def __repr__(self):
         return f"[⚙ {self.process.getName()}]"
@@ -92,7 +95,7 @@ class Com:
 
     def send_token(self, t):  # TODO  test with a custom thread
         process_position = int(self.process.getName())
-        t.recipient = str((process_position + 1) % PROCESS_NUMBER)
+        t.recipient = str((process_position + 1) % self.process_number)
         t.author = self.process.getName()
         t.update_lamport_clock(self.process.lamport_clock)
         print(f"{self} Token => send token to {t.recipient} {self.process.lamport_clock}")
@@ -137,7 +140,7 @@ class Com:
         print(f"{self} Synchronize => {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
         m.post()
-        while len(self.answered_process) < PROCESS_NUMBER - 1 and self.process.alive:
+        while len(self.answered_process) < self.process_number - 1 and self.process.alive:
             sleep(ACTIVE_WAIT_TIME)
 
     @subscribe(onEvent=Synchronize)
@@ -184,7 +187,7 @@ class Com:
             self.process.lamport_clock.unlock_clock()
             bm.post()
 
-            while len(self.answered_process_broadcast_sync) != PROCESS_NUMBER - 1 and self.process.is_alive():
+            while len(self.answered_process_broadcast_sync) != self.process_number - 1 and self.process.is_alive():
                 sleep(ACTIVE_WAIT_TIME)
         else:  # wait for a broadcast message from from_id
             while len(self.letterbox) == 0 and self.process.is_alive():
@@ -275,4 +278,31 @@ class Com:
         print(f"{self} DedicatedMessageSyncAck from {m.author} => {self.process.lamport_clock}")
         self.process.lamport_clock.unlock_clock()
         self.have_process_sync_responded = True
+
+    def join_sync(self):
+        self.answered_process_broadcast_sync = set()
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.increment()
+        bm = JoinMessage(data="", lamport_clock=self.process.lamport_clock, author=self.process.getName())
+        print(f"{self} JoinMessage => send: {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
+        bm.post()
+        sleep(WAIT_JOIN)
+        self.process.name = str(len(self.answered_process_broadcast_sync))
+        self.process_number = len(self.answered_process_broadcast_sync) + 1
+        print(f"{self.process} init")
+
+    @subscribe(threadMode=Mode.PARALLEL, onEvent=JoinMessage)
+    def on_join_sync(self, m):
+        if not isinstance(m, JoinMessage):
+            print(f"{self} JoinMessage => {self.process.getName()} Invalid object type is passed.")
+            return
+        if m.author == self.process.getName():
+            return
+        self.process.lamport_clock.lock_clock()
+        self.process.lamport_clock.update(m)
+        print(f"{self} JoinMessage from {m.author} => {self.process.lamport_clock}")
+        self.process.lamport_clock.unlock_clock()
+        self.broadcast_sync_ack(m.author)
+        self.process_number += 1
 
