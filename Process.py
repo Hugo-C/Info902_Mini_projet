@@ -8,7 +8,6 @@ from Com import Com
 from HeartbitProcess import HeartbitProcess
 from Message import *
 
-PROCESS_NUMBER = 3
 DICE_FACE = 6
 RESULT_FILENAME = "results.txt"
 ACTIVE_WAIT_TIME = 0.2
@@ -74,7 +73,7 @@ class Process(BaseProcess):
             self.com.broadcast(f"dice_value:{dice_value}", tag="dice_value")
 
             # wait that all players have play
-            while len(self.dice_result) < PROCESS_NUMBER and self.alive:
+            while len(self.dice_result) < self.com.process_number and self.alive:
                 sleep(0.5)
 
             if self.alive:

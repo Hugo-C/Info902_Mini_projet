@@ -1,7 +1,7 @@
 from collections import deque
 from enum import Enum
 from time import sleep
-from typing import Dict, Callable, List
+from typing import Dict, Callable, List, Set
 
 from pyeventbus3.pyeventbus3 import Mode
 from pyeventbus3.pyeventbus3 import PyBus
@@ -35,6 +35,13 @@ class Com:
 
     def __repr__(self):
         return f"[⚙ {self.process.getName()}]"
+
+    def get_nodes_down(self, nodes_up: Set[str]) -> Set[str]:
+        list_nodes_down = set()
+        for i in range(0, self.process_number):
+            if str(i) != self.process.name and str(i) not in nodes_up:
+                list_nodes_down.add(str(i))
+        return list_nodes_down
 
     def register_function(self, f, *, tag):
         """If com received a message with the given tag, trigger f"""
@@ -313,8 +320,13 @@ class Com:
         print(f"{self} Heartbit => send: {self.process.lamport_clock}")
         m.post()
         sleep(RESPONSE_WAIT_TIME)
-        if len(self.answered_process_broadcast_sync) < self.process_number:
-            print(f"{self.process} /!\\ one node is down, only {len(self.answered_process_broadcast_sync)} nodes are up")
+        if len(self.answered_process_broadcast_sync) < self.process_number - 1:
+            nodes_down = self.get_nodes_down(self.answered_process_broadcast_sync)
+            nodes_down_below_myself = len([node for node in nodes_down if int(node) < int(self.process.name)])
+            self.process.name = str(int(self.process.name) - int(nodes_down_below_myself))
+
+            print(f"{self.process} /!\\ one node is down, only {len(self.answered_process_broadcast_sync)} nodes are up, "
+                  f"(nodes down: {nodes_down}, nodes_up: {self.answered_process_broadcast_sync}, expected: {self.process_number})")
             self.process_number -= 1
 
     @subscribe(threadMode=Mode.PARALLEL, onEvent=Heartbit)
@@ -324,5 +336,6 @@ class Com:
             return
         if m.author == self.process.getName():
             return
-        print(f"{self} Heartbit from {m.author} => {self.process.lamport_clock}")
-        self.broadcast_sync_ack(m.author)
+        if self.process.is_alive():
+            print(f"{self} Heartbit from {m.author} => {self.process.lamport_clock}")
+            self.broadcast_sync_ack(m.author)
