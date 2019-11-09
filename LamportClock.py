@@ -11,7 +11,7 @@ class LamportClock:
         self.clock += 1
 
     def update(self, event):
-        self.clock = max(self.clock, event.getStamp()) + 1
+        self.clock = max(self.clock, event.stamp) + 1
 
     def lock_clock(self):
         self.mutex.acquire()

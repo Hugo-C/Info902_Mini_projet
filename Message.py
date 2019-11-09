@@ -1,19 +1,12 @@
 from pyeventbus3.pyeventbus3 import PyBus
 
 
-# Base class, used by other Message class
 class Message:
+    """Generic Message class"""
     def __init__(self, payload, *, lamport_clock, tag=None):
         self.payload = payload
         self.stamp = lamport_clock.clock
         self.tag = tag
-
-    def get_payload(self):
-        return self.payload
-
-    def getStamp(self):
-        """Return the stamp or lamport clock value of the event"""
-        return self.stamp
 
     def post(self):
         """Post this message on the bus"""
@@ -74,7 +67,3 @@ class Token(DedicatedMessage):
     def __init__(self, *, lamport_clock, author, recipient, min_wait):
         super().__init__("", lamport_clock=lamport_clock, author=author, recipient=recipient)
         self.min_wait = min_wait
-
-    def update_lamport_clock(self, lamport_clock):
-        """Update the lamport clock since a token will be send several times"""
-        self.stamp = lamport_clock.clock

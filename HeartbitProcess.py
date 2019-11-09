@@ -14,5 +14,5 @@ class HeartbitProcess(Thread):
 
     def run(self):
         while self.process.is_alive():
-            self.com.send_heartbit()
+            self.com._send_heartbit()
             sleep(HEARTBIT_LAPSE_TIME)
